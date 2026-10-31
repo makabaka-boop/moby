@@ -40,6 +40,8 @@ func openDatabase(dataRoot string) (*bolt.DB, error) {
 		db.Close()
 		return nil, fmt.Errorf("sync extension storage directory: %w", err)
 	}
+	// Drop point-in-time copies left behind by a previous process.
+	removeStaleSnapshots(dataRoot)
 	return db, nil
 }
 

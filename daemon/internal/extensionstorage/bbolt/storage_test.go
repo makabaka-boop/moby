@@ -21,7 +21,9 @@ import (
 	bolt "go.etcd.io/bbolt"
 	bolterrors "go.etcd.io/bbolt/errors"
 	"google.golang.org/grpc"
+	grpcCodes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	grpcStatus "google.golang.org/grpc/status"
 	"gotest.tools/v3/assert"
 	is "gotest.tools/v3/assert/cmp"
 	"gotest.tools/v3/skip"
@@ -78,6 +80,17 @@ func testKV(t *testing.T, provider storagekv.Storage, namespace string) *storage
 	kv, err := storagekv.GetKV(testResolver{storagekv.Point.ID(): provider}, namespace)
 	assert.NilError(t, err)
 	return kv
+}
+
+// isInvalidSnapshot recognizes the failed-precondition category both in
+// process (moby errdefs markers) and over gRPC (raw status errors returned
+// by raw provider calls that skip the KV helper's error translation).
+func isInvalidSnapshot(err error) bool {
+	if storagekv.IsInvalidSnapshot(err) {
+		return true
+	}
+	st, ok := grpcStatus.FromError(err)
+	return ok && st.Code() == grpcCodes.FailedPrecondition
 }
 
 func rpcStorage(t *testing.T, provider storagekv.Storage) storagekv.Storage {
@@ -482,6 +495,24 @@ func TestStorageValidationBeforeIO(t *testing.T) {
 		err := provider.DeletePrefix(ctx, &storagekv.DeletePrefixRequest{Namespace: "jobs", Prefix: prefix})
 		assert.Check(t, cerrdefs.IsInvalidArgument(err), "prefix %q: %v", prefix, err)
 	}
+	_, err = provider.OpenSnapshot(ctx, nil)
+	assert.Check(t, cerrdefs.IsInvalidArgument(err))
+	_, err = provider.OpenSnapshot(ctx, &storagekv.OpenSnapshotRequest{Namespace: "../bad"})
+	assert.Check(t, cerrdefs.IsInvalidArgument(err))
+	assert.Check(t, cerrdefs.IsInvalidArgument(provider.CloseSnapshot(ctx, nil)))
+	assert.Check(t, cerrdefs.IsInvalidArgument(provider.CloseSnapshot(ctx, &storagekv.CloseSnapshotRequest{Namespace: "jobs", Snapshot: "garbage"})))
+	_, err = provider.SnapshotGet(ctx, nil)
+	assert.Check(t, cerrdefs.IsInvalidArgument(err))
+	_, err = provider.SnapshotGet(ctx, &storagekv.SnapshotGetRequest{Namespace: "jobs", Snapshot: "garbage", Key: "key"})
+	assert.Check(t, cerrdefs.IsInvalidArgument(err))
+	_, err = provider.SnapshotList(ctx, nil)
+	assert.Check(t, cerrdefs.IsInvalidArgument(err))
+	_, err = provider.SnapshotList(ctx, &storagekv.SnapshotListRequest{Namespace: "jobs", Snapshot: "garbage"})
+	assert.Check(t, cerrdefs.IsInvalidArgument(err))
+	_, err = provider.SnapshotList(ctx, &storagekv.SnapshotListRequest{Namespace: "jobs", Prefix: "\xff"})
+	assert.Check(t, cerrdefs.IsInvalidArgument(err))
+	_, err = provider.SnapshotList(ctx, &storagekv.SnapshotListRequest{Namespace: "jobs", Limit: storagekv.MaxPageSize + 1})
+	assert.Check(t, cerrdefs.IsInvalidArgument(err))
 	_, err = os.Stat(filepath.Join(root, "extensions"))
 	assert.Check(t, is.ErrorIs(err, os.ErrNotExist))
 }
@@ -613,4 +644,253 @@ func TestStorageInitialization(t *testing.T) {
 	assert.NilError(t, d.Shutdown(t.Context()))
 	_, err := storagekv.GetKV(testResolver{}, "jobs")
 	assert.Assert(t, err != nil)
+}
+
+func TestStorageSnapshots(t *testing.T) {
+	t.Parallel()
+	for _, transport := range []string{"in-process", "RPC"} {
+		t.Run(transport, func(t *testing.T) {
+			t.Parallel()
+			provider := newTestStorage(t, t.TempDir())
+			if transport == "RPC" {
+				provider = rpcStorage(t, provider)
+			}
+			kv := testKV(t, provider, "jobs")
+			other := testKV(t, provider, "other")
+			ctx := t.Context()
+
+			for _, rec := range []struct{ key, value string }{
+				{"p/a", "old-a"},
+				{"p/b", "old-b"},
+				{"p/gone", "old-gone"},
+				{"z", "old-z"},
+			} {
+				assert.NilError(t, kv.Create(ctx, rec.key, []byte(rec.value)))
+			}
+			assert.NilError(t, other.Create(ctx, "k", []byte("other")))
+
+			snap, err := kv.OpenSnapshot(ctx)
+			assert.NilError(t, err)
+			// Keep a raw handle to verify namespace binding at the provider level.
+			opened, err := provider.OpenSnapshot(ctx, &storagekv.OpenSnapshotRequest{Namespace: "jobs"})
+			assert.NilError(t, err)
+			rawHandle := opened.Snapshot
+
+			// Mutations after opening must never reach the snapshot.
+			assert.NilError(t, kv.Update(ctx, "p/a", []byte("new-a")))
+			assert.NilError(t, kv.Create(ctx, "p/new", []byte("new")))
+			assert.NilError(t, kv.Delete(ctx, "p/gone"))
+			assert.NilError(t, kv.DeletePrefix(ctx, "p/b"))
+			assert.NilError(t, other.Update(ctx, "k", []byte("other-new")))
+
+			value, err := snap.Get(ctx, "p/a")
+			assert.NilError(t, err)
+			assert.Equal(t, string(value), "old-a")
+			// Returned bytes are owned by the caller: mutating them is harmless.
+			value[0] = 'X'
+			value, err = snap.Get(ctx, "p/a")
+			assert.NilError(t, err)
+			assert.Equal(t, string(value), "old-a")
+			value, err = snap.Get(ctx, "p/b")
+			assert.NilError(t, err)
+			assert.Equal(t, string(value), "old-b")
+			value, err = snap.Get(ctx, "p/gone")
+			assert.NilError(t, err)
+			assert.Equal(t, string(value), "old-gone")
+			_, err = snap.Get(ctx, "p/new")
+			assert.Check(t, cerrdefs.IsNotFound(err), "%v", err)
+			_, err = snap.Get(ctx, "missing")
+			assert.Check(t, cerrdefs.IsNotFound(err), "%v", err)
+
+			// The live view follows the writes.
+			value, err = kv.Get(ctx, "p/a")
+			assert.NilError(t, err)
+			assert.Equal(t, string(value), "new-a")
+			_, err = kv.Get(ctx, "p/gone")
+			assert.Check(t, cerrdefs.IsNotFound(err), "%v", err)
+			page, err := kv.List(ctx, storagekv.ListOptions{Prefix: "p/"})
+			assert.NilError(t, err)
+			assert.DeepEqual(t, page.Keys, []string{"p/a", "p/new"})
+
+			// A full snapshot listing stays at the opened state.
+			page, err = snap.List(ctx, storagekv.SnapshotListOptions{Limit: 10})
+			assert.NilError(t, err)
+			assert.DeepEqual(t, page.Keys, []string{"p/a", "p/b", "p/gone", "z"})
+			assert.Equal(t, page.NextCursor, "")
+
+			// Prefix paging follows existing key order and page limits.
+			first, err := snap.List(ctx, storagekv.SnapshotListOptions{Prefix: "p/", Limit: 2})
+			assert.NilError(t, err)
+			assert.DeepEqual(t, first.Keys, []string{"p/a", "p/b"})
+			assert.Assert(t, first.NextCursor != "")
+			var keys []string
+			cursor := first.NextCursor
+			for {
+				next, err := snap.List(ctx, storagekv.SnapshotListOptions{Prefix: "p/", Limit: 2, Cursor: cursor})
+				assert.NilError(t, err)
+				keys = append(keys, next.Keys...)
+				if next.NextCursor == "" {
+					break
+				}
+				cursor = next.NextCursor
+			}
+			assert.DeepEqual(t, keys, []string{"p/gone"})
+
+			// Cursors cannot leave their prefix, snapshot, or namespace.
+			_, err = snap.List(ctx, storagekv.SnapshotListOptions{Prefix: "z/", Limit: 2, Cursor: first.NextCursor})
+			assert.Check(t, cerrdefs.IsInvalidArgument(err), "%v", err)
+			_, err = snap.List(ctx, storagekv.SnapshotListOptions{Prefix: "p/", Limit: 2, Cursor: first.NextCursor + "garbage"})
+			assert.Check(t, cerrdefs.IsInvalidArgument(err), "%v", err)
+			snap2, err := kv.OpenSnapshot(ctx)
+			assert.NilError(t, err)
+			_, err = snap2.List(ctx, storagekv.SnapshotListOptions{Prefix: "p/", Limit: 2, Cursor: first.NextCursor})
+			assert.Check(t, cerrdefs.IsInvalidArgument(err), "%v", err)
+			_, err = provider.SnapshotList(ctx, &storagekv.SnapshotListRequest{
+				Namespace: "other", Snapshot: rawHandle, Prefix: "p/", Cursor: first.NextCursor,
+			})
+			assert.Check(t, isInvalidSnapshot(err), "%v", err)
+			_, err = provider.SnapshotGet(ctx, &storagekv.SnapshotGetRequest{
+				Namespace: "other", Snapshot: rawHandle, Key: "k",
+			})
+			assert.Check(t, isInvalidSnapshot(err), "%v", err)
+
+			if transport == "in-process" {
+				entries, err := os.ReadDir(snapshotDirPath(provider.(*storage).dataRoot))
+				assert.NilError(t, err)
+				assert.Equal(t, len(entries), 3)
+			}
+
+			assert.NilError(t, snap2.Close(ctx))
+			assert.NilError(t, snap.Close(ctx))
+			assert.NilError(t, provider.CloseSnapshot(ctx, &storagekv.CloseSnapshotRequest{Namespace: "jobs", Snapshot: rawHandle}))
+
+			if transport == "in-process" {
+				entries, err := os.ReadDir(snapshotDirPath(provider.(*storage).dataRoot))
+				assert.NilError(t, err)
+				assert.Equal(t, len(entries), 0)
+			}
+
+			// Closed snapshots fail every operation with a recognizable error.
+			_, err = snap.Get(ctx, "p/a")
+			assert.Check(t, storagekv.IsInvalidSnapshot(err), "%v", err)
+			_, err = snap.List(ctx, storagekv.SnapshotListOptions{})
+			assert.Check(t, storagekv.IsInvalidSnapshot(err), "%v", err)
+			err = snap.Close(ctx)
+			assert.Check(t, storagekv.IsInvalidSnapshot(err), "%v", err)
+		})
+	}
+}
+
+func TestStorageSnapshotRestart(t *testing.T) {
+	t.Parallel()
+	for _, transport := range []string{"in-process", "RPC"} {
+		t.Run(transport, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			ctx := t.Context()
+
+			first := newTestStorage(t, root)
+			kv := testKV(t, first, "jobs")
+			assert.NilError(t, kv.Create(ctx, "job", []byte("v1")))
+			opened, err := first.OpenSnapshot(ctx, &storagekv.OpenSnapshotRequest{Namespace: "jobs"})
+			assert.NilError(t, err)
+			handle := opened.Snapshot
+			s := first.(*storage)
+			assert.Equal(t, len(s.snapshots), 1)
+
+			// Leave the snapshot deliberately open while shutting down.
+			assert.NilError(t, s.shutdown(ctx))
+			assert.Equal(t, len(s.snapshots), 0)
+			entries, err := os.ReadDir(snapshotDirPath(root))
+			assert.NilError(t, err)
+			assert.Equal(t, len(entries), 0)
+			_, err = first.OpenSnapshot(ctx, &storagekv.OpenSnapshotRequest{Namespace: "jobs"})
+			assert.Check(t, cerrdefs.IsUnavailable(err), "%v", err)
+
+			second := newTestStorage(t, root)
+			var provider storagekv.Storage = second
+			if transport == "RPC" {
+				provider = rpcStorage(t, second)
+			}
+			restored := testKV(t, provider, "jobs")
+			value, err := restored.Get(ctx, "job")
+			assert.NilError(t, err)
+			assert.Equal(t, string(value), "v1")
+			assert.NilError(t, restored.Create(ctx, "after", []byte("v2")))
+
+			// Handles from before the restart are stale on the new provider.
+			_, err = provider.SnapshotGet(ctx, &storagekv.SnapshotGetRequest{Namespace: "jobs", Snapshot: handle, Key: "job"})
+			assert.Check(t, isInvalidSnapshot(err), "%v", err)
+			_, err = provider.SnapshotList(ctx, &storagekv.SnapshotListRequest{Namespace: "jobs", Snapshot: handle})
+			assert.Check(t, isInvalidSnapshot(err), "%v", err)
+			err = provider.CloseSnapshot(ctx, &storagekv.CloseSnapshotRequest{Namespace: "jobs", Snapshot: handle})
+			assert.Check(t, isInvalidSnapshot(err), "%v", err)
+
+			// Snapshots on the restarted provider work and read persisted data.
+			snap, err := restored.OpenSnapshot(ctx)
+			assert.NilError(t, err)
+			value, err = snap.Get(ctx, "after")
+			assert.NilError(t, err)
+			assert.Equal(t, string(value), "v2")
+			assert.NilError(t, snap.Close(ctx))
+		})
+	}
+}
+
+func TestStorageOpenSnapshotsDoNotBlock(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	provider := newTestStorage(t, root)
+	s := provider.(*storage)
+	kv := testKV(t, provider, "jobs")
+	ctx := t.Context()
+	assert.NilError(t, kv.Create(ctx, "k", []byte("v")))
+
+	snap, err := kv.OpenSnapshot(ctx)
+	assert.NilError(t, err)
+
+	// Writes keep succeeding while the snapshot stays open.
+	for i := range 100 {
+		assert.NilError(t, kv.Update(ctx, "k", fmt.Appendf(nil, "v%d", i)))
+		assert.NilError(t, kv.Create(ctx, fmt.Sprintf("k%03d", i), nil))
+	}
+	value, err := snap.Get(ctx, "k")
+	assert.NilError(t, err)
+	assert.Equal(t, string(value), "v")
+
+	// Provider shutdown must not wait for the snapshot to be closed.
+	done := make(chan error, 1)
+	go func() { done <- s.shutdown(context.WithoutCancel(ctx)) }()
+	select {
+	case err := <-done:
+		assert.NilError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("shutdown blocked by open snapshot")
+	}
+	assert.Equal(t, len(s.snapshots), 0)
+	entries, err := os.ReadDir(snapshotDirPath(root))
+	assert.NilError(t, err)
+	assert.Equal(t, len(entries), 0)
+	_, err = snap.Get(ctx, "k")
+	assert.Check(t, storagekv.IsInvalidSnapshot(err), "%v", err)
+
+	// The provider can reopen against the same data and serve writes.
+	next := newTestStorage(t, root)
+	assert.NilError(t, testKV(t, next, "jobs").Create(ctx, "again", nil))
+}
+
+func TestStorageStaleSnapshotsRemovedOnOpen(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	dir := snapshotDirPath(root)
+	assert.NilError(t, os.MkdirAll(dir, 0o700))
+	assert.NilError(t, os.WriteFile(filepath.Join(dir, "snapshot-99-99.db"), []byte("not a database"), 0o600))
+	assert.NilError(t, os.WriteFile(filepath.Join(dir, "keep.txt"), []byte("unrelated"), 0o600))
+	provider := newTestStorage(t, root)
+	// The first operation lazily opens the database and sweeps leftovers.
+	assert.NilError(t, testKV(t, provider, "jobs").Create(t.Context(), "k", nil))
+	_, err := os.Stat(filepath.Join(dir, "snapshot-99-99.db"))
+	assert.Check(t, is.ErrorIs(err, os.ErrNotExist))
+	_, err = os.Stat(filepath.Join(dir, "keep.txt"))
+	assert.NilError(t, err)
 }

@@ -78,6 +78,78 @@ func (kv *KV) List(ctx context.Context, opts ListOptions) (*ListResponse, error)
 	return resp, recordError(err)
 }
 
+// Snapshot is a read-only, point-in-time view of one namespace.
+// Reads observe the state captured when the snapshot opened and are not
+// affected by later writes. Close releases the provider's resources; leaving
+// a snapshot open does not block writes or provider shutdown, but the handle
+// becomes invalid once the provider shuts down or restarts.
+type Snapshot struct {
+	provider  Storage
+	namespace string
+	handle    string
+}
+
+// OpenSnapshot opens a read-only, point-in-time view of the namespace.
+// Call Close on the returned snapshot when recovery or enumeration ends.
+func (kv *KV) OpenSnapshot(ctx context.Context) (*Snapshot, error) {
+	resp, err := kv.provider.OpenSnapshot(ctx, &OpenSnapshotRequest{Namespace: kv.namespace})
+	if err != nil {
+		return nil, recordError(err)
+	}
+	return &Snapshot{provider: kv.provider, namespace: kv.namespace, handle: resp.Snapshot}, nil
+}
+
+// Get reads a record from the snapshot, or returns a not-found error if the
+// key was absent when the snapshot opened.
+func (s *Snapshot) Get(ctx context.Context, key string) ([]byte, error) {
+	resp, err := s.provider.SnapshotGet(ctx, &SnapshotGetRequest{
+		Namespace: s.namespace,
+		Snapshot:  s.handle,
+		Key:       key,
+	})
+	if err != nil {
+		return nil, recordError(err)
+	}
+	return resp.Value, nil
+}
+
+// SnapshotListOptions selects a page of keys in a snapshot.
+type SnapshotListOptions struct {
+	Prefix string
+	Limit  uint32
+	Cursor string
+}
+
+// List returns matching keys in ascending byte order at the snapshot's
+// point in time. Reuse NextCursor with the same prefix to continue; a cursor
+// belongs to its snapshot and never works on another one.
+func (s *Snapshot) List(ctx context.Context, opts SnapshotListOptions) (*ListResponse, error) {
+	resp, err := s.provider.SnapshotList(ctx, &SnapshotListRequest{
+		Namespace: s.namespace,
+		Snapshot:  s.handle,
+		Prefix:    opts.Prefix,
+		Limit:     opts.Limit,
+		Cursor:    opts.Cursor,
+	})
+	return resp, recordError(err)
+}
+
+// Close releases the snapshot's resources.
+func (s *Snapshot) Close(ctx context.Context) error {
+	return recordError(s.provider.CloseSnapshot(ctx, &CloseSnapshotRequest{
+		Namespace: s.namespace,
+		Snapshot:  s.handle,
+	}))
+}
+
+// IsInvalidSnapshot reports whether err marks a snapshot handle that is no
+// longer usable: it is unknown to the provider, was already closed, or was
+// opened before a provider restart. Malformed handles and cursors instead
+// fail as invalid parameters.
+func IsInvalidSnapshot(err error) bool {
+	return cerrdefs.IsFailedPrecondition(err)
+}
+
 // Preserve native errors, including context cancellation and filesystem causes.
 // RPC clients need their status errors translated back to Go error categories.
 func recordError(err error) error {

@@ -31,6 +31,29 @@ page, err := kv.List(ctx, storagekv.ListOptions{Prefix: "jobs/"})
 - Listing is paginated, not a snapshot; continue with `NextCursor` using the same prefix.
 - The helper needs no `Close`; records survive provider restarts and extension removal.
 
+## Read-only snapshots
+
+Recovery and enumeration that page through records while other handlers write need one stable view.
+Open a snapshot for the namespace, read from it, then close it:
+
+```go
+snap, err := kv.OpenSnapshot(ctx)
+if err != nil {
+    return err
+}
+defer snap.Close(ctx)
+
+value, err := snap.Get(ctx, "jobs/123")
+first, err := snap.List(ctx, storagekv.SnapshotListOptions{Prefix: "jobs/", Limit: 100})
+next, err := snap.List(ctx, storagekv.SnapshotListOptions{Prefix: "jobs/", Limit: 100, Cursor: first.NextCursor})
+```
+
+- Every read observes the state captured when the snapshot opened; later creates, updates, and deletes never change it, including keys deleted afterwards and keys missing at open time.
+- Paging follows the same ascending byte order, prefix rules, `DefaultPageSize`, and `MaxPageSize` as `List`. A cursor belongs to one snapshot, namespace, and prefix; reusing it elsewhere fails as an invalid parameter.
+- Malformed handles fail as invalid parameters. Handles that are unknown, already closed, or minted before a provider restart fail with a recognizable error; check it with `storagekv.IsInvalidSnapshot(err)`.
+- `Close` releases the snapshot's resources. Leaving snapshots open never blocks ordinary writes or provider shutdown; open handles simply become invalid after shutdown or restart.
+- In-process and RPC calls behave identically; non-snapshot operations are unaffected.
+
 Executable consumers register the generated `protogen.ClientPoint` with their SDK client-point registry.
 See [storage.go](storage.go) for the full contract and size limits.
 

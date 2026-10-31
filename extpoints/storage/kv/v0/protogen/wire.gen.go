@@ -14,12 +14,16 @@ import (
 const serviceName = "org.mobyproject.extension.storage.kv.v0.Storage"
 
 const (
-	methodGet          = "/" + serviceName + "/Get"
-	methodCreate       = "/" + serviceName + "/Create"
-	methodUpdate       = "/" + serviceName + "/Update"
-	methodDelete       = "/" + serviceName + "/Delete"
-	methodDeletePrefix = "/" + serviceName + "/DeletePrefix"
-	methodList         = "/" + serviceName + "/List"
+	methodGet           = "/" + serviceName + "/Get"
+	methodCreate        = "/" + serviceName + "/Create"
+	methodUpdate        = "/" + serviceName + "/Update"
+	methodDelete        = "/" + serviceName + "/Delete"
+	methodDeletePrefix  = "/" + serviceName + "/DeletePrefix"
+	methodList          = "/" + serviceName + "/List"
+	methodOpenSnapshot  = "/" + serviceName + "/OpenSnapshot"
+	methodCloseSnapshot = "/" + serviceName + "/CloseSnapshot"
+	methodSnapshotGet   = "/" + serviceName + "/SnapshotGet"
+	methodSnapshotList  = "/" + serviceName + "/SnapshotList"
 )
 
 // StorageServer is the server side of the point's gRPC service. It is the
@@ -32,6 +36,10 @@ type StorageServer interface {
 	Delete(context.Context, *RecordRequest) (*DeleteResponse, error)
 	DeletePrefix(context.Context, *DeletePrefixRequest) (*DeletePrefixResponse, error)
 	List(context.Context, *ListRequest) (*ListResponse, error)
+	OpenSnapshot(context.Context, *OpenSnapshotRequest) (*OpenSnapshotResponse, error)
+	CloseSnapshot(context.Context, *CloseSnapshotRequest) (*CloseSnapshotResponse, error)
+	SnapshotGet(context.Context, *SnapshotGetRequest) (*GetResponse, error)
+	SnapshotList(context.Context, *SnapshotListRequest) (*ListResponse, error)
 }
 
 // serviceDesc describes the point's gRPC service to a server. HandlerType is
@@ -48,6 +56,10 @@ var serviceDesc = grpc.ServiceDesc{
 		{MethodName: "Delete", Handler: handleDelete},
 		{MethodName: "DeletePrefix", Handler: handleDeletePrefix},
 		{MethodName: "List", Handler: handleList},
+		{MethodName: "OpenSnapshot", Handler: handleOpenSnapshot},
+		{MethodName: "CloseSnapshot", Handler: handleCloseSnapshot},
+		{MethodName: "SnapshotGet", Handler: handleSnapshotGet},
+		{MethodName: "SnapshotList", Handler: handleSnapshotList},
 	},
 }
 
@@ -135,6 +147,62 @@ func handleList(srv any, ctx context.Context, dec func(any) error, interceptor g
 	})
 }
 
+func handleOpenSnapshot(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
+	in := new(OpenSnapshotRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StorageServer).OpenSnapshot(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: methodOpenSnapshot}
+	return interceptor(ctx, in, info, func(ctx context.Context, req any) (any, error) {
+		return srv.(StorageServer).OpenSnapshot(ctx, req.(*OpenSnapshotRequest))
+	})
+}
+
+func handleCloseSnapshot(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
+	in := new(CloseSnapshotRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StorageServer).CloseSnapshot(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: methodCloseSnapshot}
+	return interceptor(ctx, in, info, func(ctx context.Context, req any) (any, error) {
+		return srv.(StorageServer).CloseSnapshot(ctx, req.(*CloseSnapshotRequest))
+	})
+}
+
+func handleSnapshotGet(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
+	in := new(SnapshotGetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StorageServer).SnapshotGet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: methodSnapshotGet}
+	return interceptor(ctx, in, info, func(ctx context.Context, req any) (any, error) {
+		return srv.(StorageServer).SnapshotGet(ctx, req.(*SnapshotGetRequest))
+	})
+}
+
+func handleSnapshotList(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
+	in := new(SnapshotListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StorageServer).SnapshotList(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: methodSnapshotList}
+	return interceptor(ctx, in, info, func(ctx context.Context, req any) (any, error) {
+		return srv.(StorageServer).SnapshotList(ctx, req.(*SnapshotListRequest))
+	})
+}
+
 // StorageClient calls the point's gRPC service. It is exported so a client
 // outside the framework - one calling a service an extension publishes on the
 // API socket - can reach it with a plain gRPC client.
@@ -145,6 +213,10 @@ type StorageClient interface {
 	Delete(ctx context.Context, in *RecordRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
 	DeletePrefix(ctx context.Context, in *DeletePrefixRequest, opts ...grpc.CallOption) (*DeletePrefixResponse, error)
 	List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
+	OpenSnapshot(ctx context.Context, in *OpenSnapshotRequest, opts ...grpc.CallOption) (*OpenSnapshotResponse, error)
+	CloseSnapshot(ctx context.Context, in *CloseSnapshotRequest, opts ...grpc.CallOption) (*CloseSnapshotResponse, error)
+	SnapshotGet(ctx context.Context, in *SnapshotGetRequest, opts ...grpc.CallOption) (*GetResponse, error)
+	SnapshotList(ctx context.Context, in *SnapshotListRequest, opts ...grpc.CallOption) (*ListResponse, error)
 }
 
 // NewStorageClient returns a client for the point's gRPC service on cc.
@@ -195,6 +267,38 @@ func (c *serviceClient) DeletePrefix(ctx context.Context, in *DeletePrefixReques
 func (c *serviceClient) List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error) {
 	out := new(ListResponse)
 	if err := c.cc.Invoke(ctx, methodList, in, out, append([]grpc.CallOption{grpc.StaticMethod()}, opts...)...); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serviceClient) OpenSnapshot(ctx context.Context, in *OpenSnapshotRequest, opts ...grpc.CallOption) (*OpenSnapshotResponse, error) {
+	out := new(OpenSnapshotResponse)
+	if err := c.cc.Invoke(ctx, methodOpenSnapshot, in, out, append([]grpc.CallOption{grpc.StaticMethod()}, opts...)...); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serviceClient) CloseSnapshot(ctx context.Context, in *CloseSnapshotRequest, opts ...grpc.CallOption) (*CloseSnapshotResponse, error) {
+	out := new(CloseSnapshotResponse)
+	if err := c.cc.Invoke(ctx, methodCloseSnapshot, in, out, append([]grpc.CallOption{grpc.StaticMethod()}, opts...)...); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serviceClient) SnapshotGet(ctx context.Context, in *SnapshotGetRequest, opts ...grpc.CallOption) (*GetResponse, error) {
+	out := new(GetResponse)
+	if err := c.cc.Invoke(ctx, methodSnapshotGet, in, out, append([]grpc.CallOption{grpc.StaticMethod()}, opts...)...); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serviceClient) SnapshotList(ctx context.Context, in *SnapshotListRequest, opts ...grpc.CallOption) (*ListResponse, error) {
+	out := new(ListResponse)
+	if err := c.cc.Invoke(ctx, methodSnapshotList, in, out, append([]grpc.CallOption{grpc.StaticMethod()}, opts...)...); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -273,6 +377,37 @@ func (s *grpcServer) List(ctx context.Context, req *ListRequest) (*ListResponse,
 	return listResponseToProto(resp), nil
 }
 
+func (s *grpcServer) OpenSnapshot(ctx context.Context, req *OpenSnapshotRequest) (*OpenSnapshotResponse, error) {
+	resp, err := s.impl.OpenSnapshot(ctx, openSnapshotRequestFromProto(req))
+	if err != nil {
+		return nil, err
+	}
+	return openSnapshotResponseToProto(resp), nil
+}
+
+func (s *grpcServer) CloseSnapshot(ctx context.Context, req *CloseSnapshotRequest) (*CloseSnapshotResponse, error) {
+	if err := s.impl.CloseSnapshot(ctx, closeSnapshotRequestFromProto(req)); err != nil {
+		return nil, err
+	}
+	return &CloseSnapshotResponse{}, nil
+}
+
+func (s *grpcServer) SnapshotGet(ctx context.Context, req *SnapshotGetRequest) (*GetResponse, error) {
+	resp, err := s.impl.SnapshotGet(ctx, snapshotGetRequestFromProto(req))
+	if err != nil {
+		return nil, err
+	}
+	return getResponseToProto(resp), nil
+}
+
+func (s *grpcServer) SnapshotList(ctx context.Context, req *SnapshotListRequest) (*ListResponse, error) {
+	resp, err := s.impl.SnapshotList(ctx, snapshotListRequestFromProto(req))
+	if err != nil {
+		return nil, err
+	}
+	return listResponseToProto(resp), nil
+}
+
 type grpcClient struct {
 	client StorageClient
 }
@@ -311,6 +446,55 @@ func (c *grpcClient) List(ctx context.Context, req *storagekvv0.ListRequest) (*s
 		return nil, err
 	}
 	return listResponseFromProto(resp), nil
+}
+
+func (c *grpcClient) OpenSnapshot(ctx context.Context, req *storagekvv0.OpenSnapshotRequest) (*storagekvv0.OpenSnapshotResponse, error) {
+	resp, err := c.client.OpenSnapshot(ctx, openSnapshotRequestToProto(req))
+	if err != nil {
+		return nil, err
+	}
+	return openSnapshotResponseFromProto(resp), nil
+}
+
+func (c *grpcClient) CloseSnapshot(ctx context.Context, req *storagekvv0.CloseSnapshotRequest) error {
+	_, err := c.client.CloseSnapshot(ctx, closeSnapshotRequestToProto(req))
+	return err
+}
+
+func (c *grpcClient) SnapshotGet(ctx context.Context, req *storagekvv0.SnapshotGetRequest) (*storagekvv0.GetResponse, error) {
+	resp, err := c.client.SnapshotGet(ctx, snapshotGetRequestToProto(req))
+	if err != nil {
+		return nil, err
+	}
+	return getResponseFromProto(resp), nil
+}
+
+func (c *grpcClient) SnapshotList(ctx context.Context, req *storagekvv0.SnapshotListRequest) (*storagekvv0.ListResponse, error) {
+	resp, err := c.client.SnapshotList(ctx, snapshotListRequestToProto(req))
+	if err != nil {
+		return nil, err
+	}
+	return listResponseFromProto(resp), nil
+}
+
+func closeSnapshotRequestToProto(in *storagekvv0.CloseSnapshotRequest) *CloseSnapshotRequest {
+	if in == nil {
+		return nil
+	}
+	out := &CloseSnapshotRequest{}
+	out.Namespace = in.Namespace
+	out.Snapshot = in.Snapshot
+	return out
+}
+
+func closeSnapshotRequestFromProto(in *CloseSnapshotRequest) *storagekvv0.CloseSnapshotRequest {
+	if in == nil {
+		return nil
+	}
+	out := &storagekvv0.CloseSnapshotRequest{}
+	out.Namespace = in.GetNamespace()
+	out.Snapshot = in.GetSnapshot()
+	return out
 }
 
 func deletePrefixRequestToProto(in *storagekvv0.DeletePrefixRequest) *DeletePrefixRequest {
@@ -395,6 +579,42 @@ func listResponseFromProto(in *ListResponse) *storagekvv0.ListResponse {
 	return out
 }
 
+func openSnapshotRequestToProto(in *storagekvv0.OpenSnapshotRequest) *OpenSnapshotRequest {
+	if in == nil {
+		return nil
+	}
+	out := &OpenSnapshotRequest{}
+	out.Namespace = in.Namespace
+	return out
+}
+
+func openSnapshotRequestFromProto(in *OpenSnapshotRequest) *storagekvv0.OpenSnapshotRequest {
+	if in == nil {
+		return nil
+	}
+	out := &storagekvv0.OpenSnapshotRequest{}
+	out.Namespace = in.GetNamespace()
+	return out
+}
+
+func openSnapshotResponseToProto(in *storagekvv0.OpenSnapshotResponse) *OpenSnapshotResponse {
+	if in == nil {
+		return nil
+	}
+	out := &OpenSnapshotResponse{}
+	out.Snapshot = in.Snapshot
+	return out
+}
+
+func openSnapshotResponseFromProto(in *OpenSnapshotResponse) *storagekvv0.OpenSnapshotResponse {
+	if in == nil {
+		return nil
+	}
+	out := &storagekvv0.OpenSnapshotResponse{}
+	out.Snapshot = in.GetSnapshot()
+	return out
+}
+
 func recordRequestToProto(in *storagekvv0.RecordRequest) *RecordRequest {
 	if in == nil {
 		return nil
@@ -412,6 +632,54 @@ func recordRequestFromProto(in *RecordRequest) *storagekvv0.RecordRequest {
 	out := &storagekvv0.RecordRequest{}
 	out.Namespace = in.GetNamespace()
 	out.Key = in.GetKey()
+	return out
+}
+
+func snapshotGetRequestToProto(in *storagekvv0.SnapshotGetRequest) *SnapshotGetRequest {
+	if in == nil {
+		return nil
+	}
+	out := &SnapshotGetRequest{}
+	out.Namespace = in.Namespace
+	out.Snapshot = in.Snapshot
+	out.Key = in.Key
+	return out
+}
+
+func snapshotGetRequestFromProto(in *SnapshotGetRequest) *storagekvv0.SnapshotGetRequest {
+	if in == nil {
+		return nil
+	}
+	out := &storagekvv0.SnapshotGetRequest{}
+	out.Namespace = in.GetNamespace()
+	out.Snapshot = in.GetSnapshot()
+	out.Key = in.GetKey()
+	return out
+}
+
+func snapshotListRequestToProto(in *storagekvv0.SnapshotListRequest) *SnapshotListRequest {
+	if in == nil {
+		return nil
+	}
+	out := &SnapshotListRequest{}
+	out.Namespace = in.Namespace
+	out.Snapshot = in.Snapshot
+	out.Prefix = in.Prefix
+	out.Limit = in.Limit
+	out.Cursor = in.Cursor
+	return out
+}
+
+func snapshotListRequestFromProto(in *SnapshotListRequest) *storagekvv0.SnapshotListRequest {
+	if in == nil {
+		return nil
+	}
+	out := &storagekvv0.SnapshotListRequest{}
+	out.Namespace = in.GetNamespace()
+	out.Snapshot = in.GetSnapshot()
+	out.Prefix = in.GetPrefix()
+	out.Limit = in.GetLimit()
+	out.Cursor = in.GetCursor()
 	return out
 }
 

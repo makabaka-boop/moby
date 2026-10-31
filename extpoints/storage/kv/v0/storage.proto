@@ -13,6 +13,15 @@ service Storage {
   rpc Delete(RecordRequest) returns (DeleteResponse);
   rpc DeletePrefix(DeletePrefixRequest) returns (DeletePrefixResponse);
   rpc List(ListRequest) returns (ListResponse);
+  rpc OpenSnapshot(OpenSnapshotRequest) returns (OpenSnapshotResponse);
+  rpc CloseSnapshot(CloseSnapshotRequest) returns (CloseSnapshotResponse);
+  rpc SnapshotGet(SnapshotGetRequest) returns (GetResponse);
+  rpc SnapshotList(SnapshotListRequest) returns (ListResponse);
+}
+
+message CloseSnapshotRequest {
+  string namespace = 1;
+  string snapshot = 2;
 }
 
 message DeletePrefixRequest {
@@ -36,9 +45,31 @@ message ListResponse {
   string next_cursor = 2;
 }
 
+message OpenSnapshotRequest {
+  string namespace = 1;
+}
+
+message OpenSnapshotResponse {
+  string snapshot = 1;
+}
+
 message RecordRequest {
   string namespace = 1;
   string key = 2;
+}
+
+message SnapshotGetRequest {
+  string namespace = 1;
+  string snapshot = 2;
+  string key = 3;
+}
+
+message SnapshotListRequest {
+  string namespace = 1;
+  string snapshot = 2;
+  string prefix = 3;
+  uint32 limit = 4;
+  string cursor = 5;
 }
 
 message WriteRequest {
@@ -54,3 +85,5 @@ message UpdateResponse {}
 message DeleteResponse {}
 
 message DeletePrefixResponse {}
+
+message CloseSnapshotResponse {}

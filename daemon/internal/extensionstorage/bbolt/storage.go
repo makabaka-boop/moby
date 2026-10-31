@@ -33,7 +33,7 @@ var Extension definition
 type definition struct{}
 
 func (definition) Declaration() extensions.Declaration {
-	s := &storage{}
+	s := newStorage()
 	return extensions.Declaration{
 		ID:           ID,
 		Providers:    []extensions.Provider{storagekv.Point.Provide(s)},
@@ -49,6 +49,14 @@ type storage struct {
 	dataRoot  string
 	db        *bolt.DB
 	closed    bool
+
+	// Snapshot read transactions outlive individual requests. They are
+	// tracked separately so shutdown can end them before closing the
+	// database; an open snapshot never blocks ordinary writes.
+	snapshotsMu sync.Mutex
+	snapshots   map[uint64]*snapshot
+	generation  uint64
+	nextSnapID  uint64
 }
 
 type databaseUnavailableError struct{ error }
@@ -93,6 +101,10 @@ func (s *storage) shutdown(context.Context) error {
 		return nil
 	}
 	s.closed = true
+	// End long-lived snapshot transactions before closing the database.
+	// Their handles report invalid snapshots afterwards; leaving snapshots
+	// unclosed must not keep the provider from shutting down.
+	s.closeSnapshotsLocked()
 	if s.db != nil {
 		err := s.db.Close()
 		s.db = nil
@@ -301,25 +313,14 @@ func (s *storage) List(ctx context.Context, req *storagekv.ListRequest) (*storag
 		if bucket == nil {
 			return nil
 		}
-		cursor := bucket.Cursor()
-		start := req.Prefix
-		if after != "" {
-			start = after
-		}
-		key, _ := cursor.Seek([]byte(start))
-		if after != "" && string(key) == after {
-			key, _ = cursor.Next()
-		}
-		for ; key != nil && bytes.HasPrefix(key, []byte(req.Prefix)); key, _ = cursor.Next() {
-			if uint32(len(resp.Keys)) == limit {
-				data, err := json.Marshal(listCursor{Namespace: req.Namespace, Prefix: req.Prefix, After: resp.Keys[len(resp.Keys)-1]})
-				if err != nil {
-					return err
-				}
-				resp.NextCursor = base64.RawURLEncoding.EncodeToString(data)
-				break
+		keys, more := pageKeys(bucket, req.Prefix, after, limit)
+		resp.Keys = keys
+		if more {
+			data, err := json.Marshal(listCursor{Namespace: req.Namespace, Prefix: req.Prefix, After: resp.Keys[len(resp.Keys)-1]})
+			if err != nil {
+				return err
 			}
-			resp.Keys = append(resp.Keys, string(key))
+			resp.NextCursor = base64.RawURLEncoding.EncodeToString(data)
 		}
 		return nil
 	})
@@ -327,6 +328,28 @@ func (s *storage) List(ctx context.Context, req *storagekv.ListRequest) (*storag
 		return nil, err
 	}
 	return resp, nil
+}
+
+// pageKeys returns up to limit sorted keys in bucket matching prefix,
+// starting strictly after the after position. more is true only when at
+// least one matching key remains after the returned page.
+func pageKeys(bucket *bolt.Bucket, prefix, after string, limit uint32) (keys []string, more bool) {
+	cursor := bucket.Cursor()
+	start := prefix
+	if after != "" {
+		start = after
+	}
+	key, _ := cursor.Seek([]byte(start))
+	if after != "" && string(key) == after {
+		key, _ = cursor.Next()
+	}
+	for ; key != nil && bytes.HasPrefix(key, []byte(prefix)); key, _ = cursor.Next() {
+		if uint32(len(keys)) == limit {
+			return keys, true
+		}
+		keys = append(keys, string(key))
+	}
+	return keys, false
 }
 
 func validateRecord(req *storagekv.RecordRequest) error {

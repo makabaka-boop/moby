@@ -21,6 +21,58 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type CloseSnapshotRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Namespace     string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	Snapshot      string                 `protobuf:"bytes,2,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CloseSnapshotRequest) Reset() {
+	*x = CloseSnapshotRequest{}
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CloseSnapshotRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CloseSnapshotRequest) ProtoMessage() {}
+
+func (x *CloseSnapshotRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CloseSnapshotRequest.ProtoReflect.Descriptor instead.
+func (*CloseSnapshotRequest) Descriptor() ([]byte, []int) {
+	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *CloseSnapshotRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+func (x *CloseSnapshotRequest) GetSnapshot() string {
+	if x != nil {
+		return x.Snapshot
+	}
+	return ""
+}
+
 type DeletePrefixRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Namespace     string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
@@ -31,7 +83,7 @@ type DeletePrefixRequest struct {
 
 func (x *DeletePrefixRequest) Reset() {
 	*x = DeletePrefixRequest{}
-	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[0]
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -43,7 +95,7 @@ func (x *DeletePrefixRequest) String() string {
 func (*DeletePrefixRequest) ProtoMessage() {}
 
 func (x *DeletePrefixRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[0]
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56,7 +108,7 @@ func (x *DeletePrefixRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeletePrefixRequest.ProtoReflect.Descriptor instead.
 func (*DeletePrefixRequest) Descriptor() ([]byte, []int) {
-	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{0}
+	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *DeletePrefixRequest) GetNamespace() string {
@@ -82,7 +134,7 @@ type GetResponse struct {
 
 func (x *GetResponse) Reset() {
 	*x = GetResponse{}
-	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[1]
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -94,7 +146,7 @@ func (x *GetResponse) String() string {
 func (*GetResponse) ProtoMessage() {}
 
 func (x *GetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[1]
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -107,7 +159,7 @@ func (x *GetResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetResponse.ProtoReflect.Descriptor instead.
 func (*GetResponse) Descriptor() ([]byte, []int) {
-	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{1}
+	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *GetResponse) GetValue() []byte {
@@ -129,7 +181,7 @@ type ListRequest struct {
 
 func (x *ListRequest) Reset() {
 	*x = ListRequest{}
-	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[2]
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -141,7 +193,7 @@ func (x *ListRequest) String() string {
 func (*ListRequest) ProtoMessage() {}
 
 func (x *ListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[2]
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -154,7 +206,7 @@ func (x *ListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRequest.ProtoReflect.Descriptor instead.
 func (*ListRequest) Descriptor() ([]byte, []int) {
-	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{2}
+	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListRequest) GetNamespace() string {
@@ -195,7 +247,7 @@ type ListResponse struct {
 
 func (x *ListResponse) Reset() {
 	*x = ListResponse{}
-	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[3]
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -207,7 +259,7 @@ func (x *ListResponse) String() string {
 func (*ListResponse) ProtoMessage() {}
 
 func (x *ListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[3]
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -220,7 +272,7 @@ func (x *ListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListResponse.ProtoReflect.Descriptor instead.
 func (*ListResponse) Descriptor() ([]byte, []int) {
-	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{3}
+	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ListResponse) GetKeys() []string {
@@ -237,6 +289,94 @@ func (x *ListResponse) GetNextCursor() string {
 	return ""
 }
 
+type OpenSnapshotRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Namespace     string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OpenSnapshotRequest) Reset() {
+	*x = OpenSnapshotRequest{}
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OpenSnapshotRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpenSnapshotRequest) ProtoMessage() {}
+
+func (x *OpenSnapshotRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpenSnapshotRequest.ProtoReflect.Descriptor instead.
+func (*OpenSnapshotRequest) Descriptor() ([]byte, []int) {
+	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *OpenSnapshotRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+type OpenSnapshotResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Snapshot      string                 `protobuf:"bytes,1,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OpenSnapshotResponse) Reset() {
+	*x = OpenSnapshotResponse{}
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OpenSnapshotResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpenSnapshotResponse) ProtoMessage() {}
+
+func (x *OpenSnapshotResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpenSnapshotResponse.ProtoReflect.Descriptor instead.
+func (*OpenSnapshotResponse) Descriptor() ([]byte, []int) {
+	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *OpenSnapshotResponse) GetSnapshot() string {
+	if x != nil {
+		return x.Snapshot
+	}
+	return ""
+}
+
 type RecordRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Namespace     string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
@@ -247,7 +387,7 @@ type RecordRequest struct {
 
 func (x *RecordRequest) Reset() {
 	*x = RecordRequest{}
-	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[4]
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -259,7 +399,7 @@ func (x *RecordRequest) String() string {
 func (*RecordRequest) ProtoMessage() {}
 
 func (x *RecordRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[4]
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -272,7 +412,7 @@ func (x *RecordRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordRequest.ProtoReflect.Descriptor instead.
 func (*RecordRequest) Descriptor() ([]byte, []int) {
-	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{4}
+	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *RecordRequest) GetNamespace() string {
@@ -289,6 +429,142 @@ func (x *RecordRequest) GetKey() string {
 	return ""
 }
 
+type SnapshotGetRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Namespace     string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	Snapshot      string                 `protobuf:"bytes,2,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
+	Key           string                 `protobuf:"bytes,3,opt,name=key,proto3" json:"key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SnapshotGetRequest) Reset() {
+	*x = SnapshotGetRequest{}
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SnapshotGetRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SnapshotGetRequest) ProtoMessage() {}
+
+func (x *SnapshotGetRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SnapshotGetRequest.ProtoReflect.Descriptor instead.
+func (*SnapshotGetRequest) Descriptor() ([]byte, []int) {
+	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *SnapshotGetRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+func (x *SnapshotGetRequest) GetSnapshot() string {
+	if x != nil {
+		return x.Snapshot
+	}
+	return ""
+}
+
+func (x *SnapshotGetRequest) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+type SnapshotListRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Namespace     string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	Snapshot      string                 `protobuf:"bytes,2,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
+	Prefix        string                 `protobuf:"bytes,3,opt,name=prefix,proto3" json:"prefix,omitempty"`
+	Limit         uint32                 `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	Cursor        string                 `protobuf:"bytes,5,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SnapshotListRequest) Reset() {
+	*x = SnapshotListRequest{}
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SnapshotListRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SnapshotListRequest) ProtoMessage() {}
+
+func (x *SnapshotListRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SnapshotListRequest.ProtoReflect.Descriptor instead.
+func (*SnapshotListRequest) Descriptor() ([]byte, []int) {
+	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *SnapshotListRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+func (x *SnapshotListRequest) GetSnapshot() string {
+	if x != nil {
+		return x.Snapshot
+	}
+	return ""
+}
+
+func (x *SnapshotListRequest) GetPrefix() string {
+	if x != nil {
+		return x.Prefix
+	}
+	return ""
+}
+
+func (x *SnapshotListRequest) GetLimit() uint32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *SnapshotListRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
 type WriteRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Namespace     string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
@@ -300,7 +576,7 @@ type WriteRequest struct {
 
 func (x *WriteRequest) Reset() {
 	*x = WriteRequest{}
-	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[5]
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -312,7 +588,7 @@ func (x *WriteRequest) String() string {
 func (*WriteRequest) ProtoMessage() {}
 
 func (x *WriteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[5]
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -325,7 +601,7 @@ func (x *WriteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteRequest.ProtoReflect.Descriptor instead.
 func (*WriteRequest) Descriptor() ([]byte, []int) {
-	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{5}
+	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *WriteRequest) GetNamespace() string {
@@ -357,7 +633,7 @@ type CreateResponse struct {
 
 func (x *CreateResponse) Reset() {
 	*x = CreateResponse{}
-	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[6]
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -369,7 +645,7 @@ func (x *CreateResponse) String() string {
 func (*CreateResponse) ProtoMessage() {}
 
 func (x *CreateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[6]
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -382,7 +658,7 @@ func (x *CreateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateResponse.ProtoReflect.Descriptor instead.
 func (*CreateResponse) Descriptor() ([]byte, []int) {
-	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{6}
+	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{11}
 }
 
 type UpdateResponse struct {
@@ -393,7 +669,7 @@ type UpdateResponse struct {
 
 func (x *UpdateResponse) Reset() {
 	*x = UpdateResponse{}
-	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[7]
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -405,7 +681,7 @@ func (x *UpdateResponse) String() string {
 func (*UpdateResponse) ProtoMessage() {}
 
 func (x *UpdateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[7]
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -418,7 +694,7 @@ func (x *UpdateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateResponse.ProtoReflect.Descriptor instead.
 func (*UpdateResponse) Descriptor() ([]byte, []int) {
-	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{7}
+	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{12}
 }
 
 type DeleteResponse struct {
@@ -429,7 +705,7 @@ type DeleteResponse struct {
 
 func (x *DeleteResponse) Reset() {
 	*x = DeleteResponse{}
-	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[8]
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -441,7 +717,7 @@ func (x *DeleteResponse) String() string {
 func (*DeleteResponse) ProtoMessage() {}
 
 func (x *DeleteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[8]
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -454,7 +730,7 @@ func (x *DeleteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteResponse.ProtoReflect.Descriptor instead.
 func (*DeleteResponse) Descriptor() ([]byte, []int) {
-	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{8}
+	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{13}
 }
 
 type DeletePrefixResponse struct {
@@ -465,7 +741,7 @@ type DeletePrefixResponse struct {
 
 func (x *DeletePrefixResponse) Reset() {
 	*x = DeletePrefixResponse{}
-	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[9]
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -477,7 +753,7 @@ func (x *DeletePrefixResponse) String() string {
 func (*DeletePrefixResponse) ProtoMessage() {}
 
 func (x *DeletePrefixResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[9]
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -490,14 +766,53 @@ func (x *DeletePrefixResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeletePrefixResponse.ProtoReflect.Descriptor instead.
 func (*DeletePrefixResponse) Descriptor() ([]byte, []int) {
-	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{9}
+	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{14}
+}
+
+type CloseSnapshotResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CloseSnapshotResponse) Reset() {
+	*x = CloseSnapshotResponse{}
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CloseSnapshotResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CloseSnapshotResponse) ProtoMessage() {}
+
+func (x *CloseSnapshotResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_extpoints_storage_kv_v0_storage_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CloseSnapshotResponse.ProtoReflect.Descriptor instead.
+func (*CloseSnapshotResponse) Descriptor() ([]byte, []int) {
+	return file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP(), []int{15}
 }
 
 var File_extpoints_storage_kv_v0_storage_proto protoreflect.FileDescriptor
 
 const file_extpoints_storage_kv_v0_storage_proto_rawDesc = "" +
 	"\n" +
-	"%extpoints/storage/kv/v0/storage.proto\x12'org.mobyproject.extension.storage.kv.v0\"K\n" +
+	"%extpoints/storage/kv/v0/storage.proto\x12'org.mobyproject.extension.storage.kv.v0\"P\n" +
+	"\x14CloseSnapshotRequest\x12\x1c\n" +
+	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x1a\n" +
+	"\bsnapshot\x18\x02 \x01(\tR\bsnapshot\"K\n" +
 	"\x13DeletePrefixRequest\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x16\n" +
 	"\x06prefix\x18\x02 \x01(\tR\x06prefix\"#\n" +
@@ -511,10 +826,24 @@ const file_extpoints_storage_kv_v0_storage_proto_rawDesc = "" +
 	"\fListResponse\x12\x12\n" +
 	"\x04keys\x18\x01 \x03(\tR\x04keys\x12\x1f\n" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
-	"nextCursor\"?\n" +
+	"nextCursor\"3\n" +
+	"\x13OpenSnapshotRequest\x12\x1c\n" +
+	"\tnamespace\x18\x01 \x01(\tR\tnamespace\"2\n" +
+	"\x14OpenSnapshotResponse\x12\x1a\n" +
+	"\bsnapshot\x18\x01 \x01(\tR\bsnapshot\"?\n" +
 	"\rRecordRequest\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x10\n" +
-	"\x03key\x18\x02 \x01(\tR\x03key\"T\n" +
+	"\x03key\x18\x02 \x01(\tR\x03key\"`\n" +
+	"\x12SnapshotGetRequest\x12\x1c\n" +
+	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x1a\n" +
+	"\bsnapshot\x18\x02 \x01(\tR\bsnapshot\x12\x10\n" +
+	"\x03key\x18\x03 \x01(\tR\x03key\"\x95\x01\n" +
+	"\x13SnapshotListRequest\x12\x1c\n" +
+	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x1a\n" +
+	"\bsnapshot\x18\x02 \x01(\tR\bsnapshot\x12\x16\n" +
+	"\x06prefix\x18\x03 \x01(\tR\x06prefix\x12\x14\n" +
+	"\x05limit\x18\x04 \x01(\rR\x05limit\x12\x16\n" +
+	"\x06cursor\x18\x05 \x01(\tR\x06cursor\"T\n" +
 	"\fWriteRequest\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x10\n" +
 	"\x03key\x18\x02 \x01(\tR\x03key\x12\x14\n" +
@@ -522,14 +851,20 @@ const file_extpoints_storage_kv_v0_storage_proto_rawDesc = "" +
 	"\x0eCreateResponse\"\x10\n" +
 	"\x0eUpdateResponse\"\x10\n" +
 	"\x0eDeleteResponse\"\x16\n" +
-	"\x14DeletePrefixResponse2\xf0\x05\n" +
+	"\x14DeletePrefixResponse\"\x17\n" +
+	"\x15CloseSnapshotResponse2\x98\n" +
+	"\n" +
 	"\aStorage\x12s\n" +
 	"\x03Get\x126.org.mobyproject.extension.storage.kv.v0.RecordRequest\x1a4.org.mobyproject.extension.storage.kv.v0.GetResponse\x12x\n" +
 	"\x06Create\x125.org.mobyproject.extension.storage.kv.v0.WriteRequest\x1a7.org.mobyproject.extension.storage.kv.v0.CreateResponse\x12x\n" +
 	"\x06Update\x125.org.mobyproject.extension.storage.kv.v0.WriteRequest\x1a7.org.mobyproject.extension.storage.kv.v0.UpdateResponse\x12y\n" +
 	"\x06Delete\x126.org.mobyproject.extension.storage.kv.v0.RecordRequest\x1a7.org.mobyproject.extension.storage.kv.v0.DeleteResponse\x12\x8b\x01\n" +
 	"\fDeletePrefix\x12<.org.mobyproject.extension.storage.kv.v0.DeletePrefixRequest\x1a=.org.mobyproject.extension.storage.kv.v0.DeletePrefixResponse\x12s\n" +
-	"\x04List\x124.org.mobyproject.extension.storage.kv.v0.ListRequest\x1a5.org.mobyproject.extension.storage.kv.v0.ListResponseB:Z8github.com/moby/moby/v2/extpoints/storage/kv/v0/protogenb\x06proto3"
+	"\x04List\x124.org.mobyproject.extension.storage.kv.v0.ListRequest\x1a5.org.mobyproject.extension.storage.kv.v0.ListResponse\x12\x8b\x01\n" +
+	"\fOpenSnapshot\x12<.org.mobyproject.extension.storage.kv.v0.OpenSnapshotRequest\x1a=.org.mobyproject.extension.storage.kv.v0.OpenSnapshotResponse\x12\x8e\x01\n" +
+	"\rCloseSnapshot\x12=.org.mobyproject.extension.storage.kv.v0.CloseSnapshotRequest\x1a>.org.mobyproject.extension.storage.kv.v0.CloseSnapshotResponse\x12\x80\x01\n" +
+	"\vSnapshotGet\x12;.org.mobyproject.extension.storage.kv.v0.SnapshotGetRequest\x1a4.org.mobyproject.extension.storage.kv.v0.GetResponse\x12\x83\x01\n" +
+	"\fSnapshotList\x12<.org.mobyproject.extension.storage.kv.v0.SnapshotListRequest\x1a5.org.mobyproject.extension.storage.kv.v0.ListResponseB:Z8github.com/moby/moby/v2/extpoints/storage/kv/v0/protogenb\x06proto3"
 
 var (
 	file_extpoints_storage_kv_v0_storage_proto_rawDescOnce sync.Once
@@ -543,37 +878,51 @@ func file_extpoints_storage_kv_v0_storage_proto_rawDescGZIP() []byte {
 	return file_extpoints_storage_kv_v0_storage_proto_rawDescData
 }
 
-var file_extpoints_storage_kv_v0_storage_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_extpoints_storage_kv_v0_storage_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_extpoints_storage_kv_v0_storage_proto_goTypes = []any{
-	(*DeletePrefixRequest)(nil),  // 0: org.mobyproject.extension.storage.kv.v0.DeletePrefixRequest
-	(*GetResponse)(nil),          // 1: org.mobyproject.extension.storage.kv.v0.GetResponse
-	(*ListRequest)(nil),          // 2: org.mobyproject.extension.storage.kv.v0.ListRequest
-	(*ListResponse)(nil),         // 3: org.mobyproject.extension.storage.kv.v0.ListResponse
-	(*RecordRequest)(nil),        // 4: org.mobyproject.extension.storage.kv.v0.RecordRequest
-	(*WriteRequest)(nil),         // 5: org.mobyproject.extension.storage.kv.v0.WriteRequest
-	(*CreateResponse)(nil),       // 6: org.mobyproject.extension.storage.kv.v0.CreateResponse
-	(*UpdateResponse)(nil),       // 7: org.mobyproject.extension.storage.kv.v0.UpdateResponse
-	(*DeleteResponse)(nil),       // 8: org.mobyproject.extension.storage.kv.v0.DeleteResponse
-	(*DeletePrefixResponse)(nil), // 9: org.mobyproject.extension.storage.kv.v0.DeletePrefixResponse
+	(*CloseSnapshotRequest)(nil),  // 0: org.mobyproject.extension.storage.kv.v0.CloseSnapshotRequest
+	(*DeletePrefixRequest)(nil),   // 1: org.mobyproject.extension.storage.kv.v0.DeletePrefixRequest
+	(*GetResponse)(nil),           // 2: org.mobyproject.extension.storage.kv.v0.GetResponse
+	(*ListRequest)(nil),           // 3: org.mobyproject.extension.storage.kv.v0.ListRequest
+	(*ListResponse)(nil),          // 4: org.mobyproject.extension.storage.kv.v0.ListResponse
+	(*OpenSnapshotRequest)(nil),   // 5: org.mobyproject.extension.storage.kv.v0.OpenSnapshotRequest
+	(*OpenSnapshotResponse)(nil),  // 6: org.mobyproject.extension.storage.kv.v0.OpenSnapshotResponse
+	(*RecordRequest)(nil),         // 7: org.mobyproject.extension.storage.kv.v0.RecordRequest
+	(*SnapshotGetRequest)(nil),    // 8: org.mobyproject.extension.storage.kv.v0.SnapshotGetRequest
+	(*SnapshotListRequest)(nil),   // 9: org.mobyproject.extension.storage.kv.v0.SnapshotListRequest
+	(*WriteRequest)(nil),          // 10: org.mobyproject.extension.storage.kv.v0.WriteRequest
+	(*CreateResponse)(nil),        // 11: org.mobyproject.extension.storage.kv.v0.CreateResponse
+	(*UpdateResponse)(nil),        // 12: org.mobyproject.extension.storage.kv.v0.UpdateResponse
+	(*DeleteResponse)(nil),        // 13: org.mobyproject.extension.storage.kv.v0.DeleteResponse
+	(*DeletePrefixResponse)(nil),  // 14: org.mobyproject.extension.storage.kv.v0.DeletePrefixResponse
+	(*CloseSnapshotResponse)(nil), // 15: org.mobyproject.extension.storage.kv.v0.CloseSnapshotResponse
 }
 var file_extpoints_storage_kv_v0_storage_proto_depIdxs = []int32{
-	4, // 0: org.mobyproject.extension.storage.kv.v0.Storage.Get:input_type -> org.mobyproject.extension.storage.kv.v0.RecordRequest
-	5, // 1: org.mobyproject.extension.storage.kv.v0.Storage.Create:input_type -> org.mobyproject.extension.storage.kv.v0.WriteRequest
-	5, // 2: org.mobyproject.extension.storage.kv.v0.Storage.Update:input_type -> org.mobyproject.extension.storage.kv.v0.WriteRequest
-	4, // 3: org.mobyproject.extension.storage.kv.v0.Storage.Delete:input_type -> org.mobyproject.extension.storage.kv.v0.RecordRequest
-	0, // 4: org.mobyproject.extension.storage.kv.v0.Storage.DeletePrefix:input_type -> org.mobyproject.extension.storage.kv.v0.DeletePrefixRequest
-	2, // 5: org.mobyproject.extension.storage.kv.v0.Storage.List:input_type -> org.mobyproject.extension.storage.kv.v0.ListRequest
-	1, // 6: org.mobyproject.extension.storage.kv.v0.Storage.Get:output_type -> org.mobyproject.extension.storage.kv.v0.GetResponse
-	6, // 7: org.mobyproject.extension.storage.kv.v0.Storage.Create:output_type -> org.mobyproject.extension.storage.kv.v0.CreateResponse
-	7, // 8: org.mobyproject.extension.storage.kv.v0.Storage.Update:output_type -> org.mobyproject.extension.storage.kv.v0.UpdateResponse
-	8, // 9: org.mobyproject.extension.storage.kv.v0.Storage.Delete:output_type -> org.mobyproject.extension.storage.kv.v0.DeleteResponse
-	9, // 10: org.mobyproject.extension.storage.kv.v0.Storage.DeletePrefix:output_type -> org.mobyproject.extension.storage.kv.v0.DeletePrefixResponse
-	3, // 11: org.mobyproject.extension.storage.kv.v0.Storage.List:output_type -> org.mobyproject.extension.storage.kv.v0.ListResponse
-	6, // [6:12] is the sub-list for method output_type
-	0, // [0:6] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	7,  // 0: org.mobyproject.extension.storage.kv.v0.Storage.Get:input_type -> org.mobyproject.extension.storage.kv.v0.RecordRequest
+	10, // 1: org.mobyproject.extension.storage.kv.v0.Storage.Create:input_type -> org.mobyproject.extension.storage.kv.v0.WriteRequest
+	10, // 2: org.mobyproject.extension.storage.kv.v0.Storage.Update:input_type -> org.mobyproject.extension.storage.kv.v0.WriteRequest
+	7,  // 3: org.mobyproject.extension.storage.kv.v0.Storage.Delete:input_type -> org.mobyproject.extension.storage.kv.v0.RecordRequest
+	1,  // 4: org.mobyproject.extension.storage.kv.v0.Storage.DeletePrefix:input_type -> org.mobyproject.extension.storage.kv.v0.DeletePrefixRequest
+	3,  // 5: org.mobyproject.extension.storage.kv.v0.Storage.List:input_type -> org.mobyproject.extension.storage.kv.v0.ListRequest
+	5,  // 6: org.mobyproject.extension.storage.kv.v0.Storage.OpenSnapshot:input_type -> org.mobyproject.extension.storage.kv.v0.OpenSnapshotRequest
+	0,  // 7: org.mobyproject.extension.storage.kv.v0.Storage.CloseSnapshot:input_type -> org.mobyproject.extension.storage.kv.v0.CloseSnapshotRequest
+	8,  // 8: org.mobyproject.extension.storage.kv.v0.Storage.SnapshotGet:input_type -> org.mobyproject.extension.storage.kv.v0.SnapshotGetRequest
+	9,  // 9: org.mobyproject.extension.storage.kv.v0.Storage.SnapshotList:input_type -> org.mobyproject.extension.storage.kv.v0.SnapshotListRequest
+	2,  // 10: org.mobyproject.extension.storage.kv.v0.Storage.Get:output_type -> org.mobyproject.extension.storage.kv.v0.GetResponse
+	11, // 11: org.mobyproject.extension.storage.kv.v0.Storage.Create:output_type -> org.mobyproject.extension.storage.kv.v0.CreateResponse
+	12, // 12: org.mobyproject.extension.storage.kv.v0.Storage.Update:output_type -> org.mobyproject.extension.storage.kv.v0.UpdateResponse
+	13, // 13: org.mobyproject.extension.storage.kv.v0.Storage.Delete:output_type -> org.mobyproject.extension.storage.kv.v0.DeleteResponse
+	14, // 14: org.mobyproject.extension.storage.kv.v0.Storage.DeletePrefix:output_type -> org.mobyproject.extension.storage.kv.v0.DeletePrefixResponse
+	4,  // 15: org.mobyproject.extension.storage.kv.v0.Storage.List:output_type -> org.mobyproject.extension.storage.kv.v0.ListResponse
+	6,  // 16: org.mobyproject.extension.storage.kv.v0.Storage.OpenSnapshot:output_type -> org.mobyproject.extension.storage.kv.v0.OpenSnapshotResponse
+	15, // 17: org.mobyproject.extension.storage.kv.v0.Storage.CloseSnapshot:output_type -> org.mobyproject.extension.storage.kv.v0.CloseSnapshotResponse
+	2,  // 18: org.mobyproject.extension.storage.kv.v0.Storage.SnapshotGet:output_type -> org.mobyproject.extension.storage.kv.v0.GetResponse
+	4,  // 19: org.mobyproject.extension.storage.kv.v0.Storage.SnapshotList:output_type -> org.mobyproject.extension.storage.kv.v0.ListResponse
+	10, // [10:20] is the sub-list for method output_type
+	0,  // [0:10] is the sub-list for method input_type
+	0,  // [0:0] is the sub-list for extension type_name
+	0,  // [0:0] is the sub-list for extension extendee
+	0,  // [0:0] is the sub-list for field type_name
 }
 
 func init() { file_extpoints_storage_kv_v0_storage_proto_init() }
@@ -587,7 +936,7 @@ func file_extpoints_storage_kv_v0_storage_proto_init() {
 			GoPackagePath: reflect.TypeFor[x]().PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_extpoints_storage_kv_v0_storage_proto_rawDesc), len(file_extpoints_storage_kv_v0_storage_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
