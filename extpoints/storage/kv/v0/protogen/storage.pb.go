@@ -294,6 +294,7 @@ type WriteRequest struct {
 	Namespace     string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	Key           string                 `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
 	Value         []byte                 `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	Ttl           int64                  `protobuf:"varint,4,opt,name=ttl,proto3" json:"ttl,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -347,6 +348,13 @@ func (x *WriteRequest) GetValue() []byte {
 		return x.Value
 	}
 	return nil
+}
+
+func (x *WriteRequest) GetTtl() int64 {
+	if x != nil {
+		return x.Ttl
+	}
+	return 0
 }
 
 type CreateResponse struct {
@@ -514,11 +522,12 @@ const file_extpoints_storage_kv_v0_storage_proto_rawDesc = "" +
 	"nextCursor\"?\n" +
 	"\rRecordRequest\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x10\n" +
-	"\x03key\x18\x02 \x01(\tR\x03key\"T\n" +
+	"\x03key\x18\x02 \x01(\tR\x03key\"f\n" +
 	"\fWriteRequest\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x10\n" +
 	"\x03key\x18\x02 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x03 \x01(\fR\x05value\"\x10\n" +
+	"\x05value\x18\x03 \x01(\fR\x05value\x12\x10\n" +
+	"\x03ttl\x18\x04 \x01(\x03R\x03ttl\"\x10\n" +
 	"\x0eCreateResponse\"\x10\n" +
 	"\x0eUpdateResponse\"\x10\n" +
 	"\x0eDeleteResponse\"\x16\n" +

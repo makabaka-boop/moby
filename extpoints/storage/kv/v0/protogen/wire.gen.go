@@ -423,6 +423,7 @@ func writeRequestToProto(in *storagekvv0.WriteRequest) *WriteRequest {
 	out.Namespace = in.Namespace
 	out.Key = in.Key
 	out.Value = in.Value
+	out.Ttl = in.TTL
 	return out
 }
 
@@ -434,5 +435,6 @@ func writeRequestFromProto(in *WriteRequest) *storagekvv0.WriteRequest {
 	out.Namespace = in.GetNamespace()
 	out.Key = in.GetKey()
 	out.Value = in.GetValue()
+	out.TTL = in.GetTtl()
 	return out
 }

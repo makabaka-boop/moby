@@ -2,6 +2,7 @@ package storagekvv0
 
 import (
 	"context"
+	"time"
 
 	cerrdefs "github.com/containerd/errdefs"
 	"github.com/containerd/errdefs/pkg/errgrpc"
@@ -39,13 +40,39 @@ func (kv *KV) Get(ctx context.Context, key string) ([]byte, error) {
 }
 
 // Create writes a new record, or returns a conflict if the key exists.
-func (kv *KV) Create(ctx context.Context, key string, value []byte) error {
-	return recordError(kv.provider.Create(ctx, &WriteRequest{Namespace: kv.namespace, Key: key, Value: value}))
+// ttl optionally bounds the record's lifetime, counted from this write;
+// zero or omitted keeps it permanently, a negative value is rejected.
+func (kv *KV) Create(ctx context.Context, key string, value []byte, ttl ...time.Duration) error {
+	req, err := writeRequest(kv.namespace, key, value, ttl)
+	if err != nil {
+		return recordError(err)
+	}
+	return recordError(kv.provider.Create(ctx, req))
 }
 
 // Update replaces a record, or returns a not-found error if it is absent.
-func (kv *KV) Update(ctx context.Context, key string, value []byte) error {
-	return recordError(kv.provider.Update(ctx, &WriteRequest{Namespace: kv.namespace, Key: key, Value: value}))
+// It also replaces the expiry: ttl zero or omitted stores the replacement
+// permanently and clears any expiry the previous write set.
+func (kv *KV) Update(ctx context.Context, key string, value []byte, ttl ...time.Duration) error {
+	req, err := writeRequest(kv.namespace, key, value, ttl)
+	if err != nil {
+		return recordError(err)
+	}
+	return recordError(kv.provider.Update(ctx, req))
+}
+
+// writeRequest builds a write request, translating the optional TTL to the
+// contract's nanosecond count.
+func writeRequest(namespace, key string, value []byte, ttl []time.Duration) (*WriteRequest, error) {
+	req := &WriteRequest{Namespace: namespace, Key: key, Value: value}
+	if len(ttl) == 0 {
+		return req, nil
+	}
+	if ttl[0] < 0 {
+		return nil, errdefs.InvalidParameter(status.Error(codes.InvalidArgument, "record ttl must not be negative"))
+	}
+	req.TTL = int64(ttl[0])
+	return req, nil
 }
 
 // Delete removes a record; deleting an absent record succeeds.

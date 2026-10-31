@@ -12,13 +12,17 @@ import (
 // Storage saves key/value records in named namespaces.
 // Callers using the same namespace share records; names do not control access.
 type Storage interface {
-	// Get reads a record, or returns not-found if it is missing.
+	// Get reads a record, or returns not-found if it is missing or expired.
 	Get(ctx context.Context, req *RecordRequest) (*GetResponse, error)
 
 	// Create adds a record, or returns a conflict if the key exists.
+	// A record that has reached its TTL no longer exists, so creating its
+	// key succeeds instead of conflicting.
 	Create(ctx context.Context, req *WriteRequest) error
 
 	// Update replaces a record, or returns not-found if it is missing.
+	// It replaces both the value and the expiry: a zero TTL clears any
+	// expiry the previous write set.
 	Update(ctx context.Context, req *WriteRequest) error
 
 	// Delete removes a record, doing nothing if it is missing.
@@ -29,6 +33,7 @@ type Storage interface {
 	DeletePrefix(ctx context.Context, req *DeletePrefixRequest) error
 
 	// List returns a page of matching keys in sorted order.
+	// Expired keys are omitted and do not count toward the page size.
 	// Results can change between pages.
 	List(ctx context.Context, req *ListRequest) (*ListResponse, error)
 }
@@ -68,6 +73,13 @@ type WriteRequest struct {
 	Namespace string `pb:"1"`
 	Key       string `pb:"2"`
 	Value     []byte `pb:"3"`
+	// TTL is the record's time to live in nanoseconds, counted from the write.
+	// A positive value expires the record at write time plus TTL; the absolute
+	// expiry is persisted, so restarting the provider does not restart it.
+	// Zero, including requests from callers that predate TTL, keeps the record
+	// permanently and clears any expiry set by a previous write.
+	// A negative value is rejected.
+	TTL int64 `pb:"4"`
 }
 
 // GetResponse contains a record's value.

@@ -5,14 +5,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/moby/extensions"
 	"github.com/moby/moby/v2/errdefs"
 	daemonconfigv0 "github.com/moby/moby/v2/extpoints/daemonconfig/v0"
@@ -21,6 +25,17 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// expiryBucketName is the top-level bucket that records absolute expiries.
+// It maps namespace + NUL + key to an 8-byte big-endian UnixNano deadline.
+// The leading NUL can never appear in a validated namespace, so it cannot
+// alias a record bucket. Records without an entry never expire; this keeps
+// records written before TTL existed permanently stored.
+const expiryBucketName = "\x00ttl"
+
+// defaultCleanupInterval bounds how long expired records linger before the
+// provider removes them without anyone accessing their keys.
+const defaultCleanupInterval = time.Minute
 
 // ID identifies the daemon's bbolt storage provider.
 const ID extensions.ExtensionID = "org.mobyproject.storage.bbolt.v0"
@@ -49,6 +64,12 @@ type storage struct {
 	dataRoot  string
 	db        *bolt.DB
 	closed    bool
+
+	// cleanupInterval overrides the expiry sweeper's period. It is read once
+	// when the database opens and exists for tests.
+	cleanupInterval time.Duration
+	janitorStop     chan struct{}
+	janitorDone     chan struct{}
 }
 
 type databaseUnavailableError struct{ error }
@@ -84,21 +105,121 @@ func (s *storage) init(ctx context.Context, _ extensions.Config, resolver extens
 	return nil
 }
 
-func (s *storage) shutdown(context.Context) error {
+func (s *storage) shutdown(ctx context.Context) error {
 	s.lifecycle.Lock()
-	defer s.lifecycle.Unlock()
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.closed {
+		s.mu.Unlock()
+		s.lifecycle.Unlock()
 		return nil
 	}
 	s.closed = true
+	var db *bolt.DB
 	if s.db != nil {
-		err := s.db.Close()
+		db = s.db
 		s.db = nil
-		return err
 	}
-	return nil
+	stop := s.janitorStop
+	done := s.janitorDone
+	s.mu.Unlock()
+	s.lifecycle.Unlock()
+
+	// The lifecycle lock this function held until now guarantees no sweep is
+	// running. Signal before closing so a sweep about to start observes the
+	// closed database and exits instead of touching it.
+	if stop != nil {
+		close(stop)
+	}
+	var err error
+	if db != nil {
+		err = db.Close()
+	}
+	if done != nil {
+		select {
+		case <-done:
+		case <-ctx.Done():
+		}
+	}
+	return err
+}
+
+// startJanitor launches the background expiry sweeper. It runs at most once
+// per storage, right after the database's first transaction completed.
+func (s *storage) startJanitor() {
+	s.mu.Lock()
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	s.janitorStop = stop
+	s.janitorDone = done
+	interval := s.cleanupInterval
+	if interval <= 0 {
+		interval = defaultCleanupInterval
+	}
+	s.mu.Unlock()
+	go s.runJanitor(stop, done, interval)
+}
+
+func (s *storage) runJanitor(stop <-chan struct{}, done chan<- struct{}, interval time.Duration) {
+	defer close(done)
+	// Sweep once on startup so expiries elapsed while the provider was down
+	// are removed without waiting for the first interval.
+	timer := time.NewTimer(0)
+	defer timer.Stop()
+	for {
+		select {
+		case <-stop:
+			return
+		case <-timer.C:
+		}
+		// A closed or never-opened database is unavailable; shutdown owns the
+		// database once that happens, so the sweeper is finished.
+		if err := s.purgeExpired(context.Background()); cerrdefs.IsUnavailable(err) {
+			return
+		}
+		timer.Reset(interval)
+	}
+}
+
+// purgeExpired physically removes records whose persisted deadline passed.
+// It scans the expiry index, so keys do not have to be accessed to be
+// collected.
+func (s *storage) purgeExpired(ctx context.Context) error {
+	return s.transaction(ctx, true, func(tx *bolt.Tx) error {
+		expiry := tx.Bucket([]byte(expiryBucketName))
+		if expiry == nil {
+			return nil
+		}
+		now := time.Now().UnixNano()
+		cursor := expiry.Cursor()
+		for composite, meta := cursor.First(); composite != nil; composite, meta = cursor.Next() {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			expiresAt, ok := decodeExpiry(meta)
+			if !ok || expiresAt > now {
+				continue
+			}
+			namespace, key, ok := strings.Cut(string(composite), "\x00")
+			if !ok {
+				continue
+			}
+			// Write transactions are serialized and each sees every earlier
+			// commit, so a renewal or same-name rebuild committed before this
+			// sweep already replaced the deadline above, and none can commit
+			// while it runs. Removing the value only while the index still
+			// shows this past deadline cannot touch a renewed or rebuilt
+			// record.
+			if bucket := tx.Bucket([]byte(namespace)); bucket != nil {
+				if err := bucket.Delete([]byte(key)); err != nil {
+					return err
+				}
+			}
+			if err := cursor.Delete(); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // transaction holds the lifecycle read lock through transaction completion so
@@ -111,6 +232,7 @@ func (s *storage) transaction(ctx context.Context, write bool, fn func(*bolt.Tx)
 	defer s.lifecycle.RUnlock()
 
 	var db *bolt.DB
+	openedNow := false
 	err := func() error {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -129,6 +251,7 @@ func (s *storage) transaction(ctx context.Context, write bool, fn func(*bolt.Tx)
 			if err != nil {
 				return databaseUnavailableError{err}
 			}
+			openedNow = true
 		}
 		db = s.db
 		return nil
@@ -147,9 +270,19 @@ func (s *storage) transaction(ctx context.Context, write bool, fn func(*bolt.Tx)
 		return ctx.Err()
 	}
 	if write {
-		return db.Update(operation)
+		err = db.Update(operation)
+	} else {
+		err = db.View(operation)
 	}
-	return db.View(operation)
+	// Start the sweeper only after the opening transaction finished: a bbolt
+	// writer holds the metadata lock while it runs, so a sweep starting inside
+	// another long-lived transaction would needlessly block new readers. The
+	// lifecycle read lock is still held here, which keeps shutdown from
+	// interleaving with the start.
+	if openedNow {
+		s.startJanitor()
+	}
+	return err
 }
 
 func (s *storage) Get(ctx context.Context, req *storagekv.RecordRequest) (*storagekv.GetResponse, error) {
@@ -164,6 +297,9 @@ func (s *storage) Get(ctx context.Context, req *storagekv.RecordRequest) (*stora
 		}
 		value := bucket.Get([]byte(req.Key))
 		if value == nil {
+			return recordNotFound(req.Key)
+		}
+		if expiry := tx.Bucket([]byte(expiryBucketName)); expiry != nil && recordExpired(expiry.Get(expiryComposite(req.Namespace, req.Key)), time.Now().UnixNano()) {
 			return recordNotFound(req.Key)
 		}
 		// Bolt values are valid only for the lifetime of the transaction.
@@ -194,9 +330,21 @@ func (s *storage) write(ctx context.Context, req *storagekv.WriteRequest, create
 	if len(req.Value) > storagekv.MaxValueSize {
 		return invalidRequest("record value exceeds maximum size")
 	}
+	if req.TTL < 0 {
+		return invalidRequest("record ttl must not be negative")
+	}
 	return s.transaction(ctx, true, func(tx *bolt.Tx) error {
+		now := time.Now()
 		bucket := tx.Bucket([]byte(req.Namespace))
-		exists := bucket != nil && bucket.Get([]byte(req.Key)) != nil
+		expiry, err := tx.CreateBucketIfNotExists([]byte(expiryBucketName))
+		if err != nil {
+			return err
+		}
+		composite := expiryComposite(req.Namespace, req.Key)
+		// An expired record counts as absent: create may rebuild it and
+		// update reports not-found, matching every other operation.
+		exists := bucket != nil && bucket.Get([]byte(req.Key)) != nil &&
+			!recordExpired(expiry.Get(composite), now.UnixNano())
 		if create && exists {
 			return errdefs.Conflict(status.Errorf(codes.AlreadyExists, "record %q already exists", req.Key))
 		}
@@ -210,7 +358,15 @@ func (s *storage) write(ctx context.Context, req *storagekv.WriteRequest, create
 				return err
 			}
 		}
-		return bucket.Put([]byte(req.Key), req.Value)
+		if err := bucket.Put([]byte(req.Key), req.Value); err != nil {
+			return err
+		}
+		// Replace the expiry together with the value: a positive TTL stores
+		// the new absolute deadline; zero clears a deadline set previously.
+		if req.TTL > 0 {
+			return expiry.Put(composite, encodeExpiry(expiryAt(now, req.TTL)))
+		}
+		return expiry.Delete(composite)
 	})
 }
 
@@ -223,7 +379,13 @@ func (s *storage) Delete(ctx context.Context, req *storagekv.RecordRequest) erro
 		if bucket == nil {
 			return nil
 		}
-		return bucket.Delete([]byte(req.Key))
+		if err := bucket.Delete([]byte(req.Key)); err != nil {
+			return err
+		}
+		if expiry := tx.Bucket([]byte(expiryBucketName)); expiry != nil {
+			return expiry.Delete(expiryComposite(req.Namespace, req.Key))
+		}
+		return nil
 	})
 }
 
@@ -238,19 +400,29 @@ func (s *storage) DeletePrefix(ctx context.Context, req *storagekv.DeletePrefixR
 		return invalidRequest("invalid key prefix")
 	}
 	return s.transaction(ctx, true, func(tx *bolt.Tx) error {
-		bucket := tx.Bucket([]byte(req.Namespace))
-		if bucket == nil {
-			return nil
-		}
-		cursor := bucket.Cursor()
-		prefix := []byte(req.Prefix)
-		// Deletion shifts the remaining keys; advancing would skip the next key.
-		for key, _ := cursor.Seek(prefix); key != nil && bytes.HasPrefix(key, prefix); key, _ = cursor.Seek(prefix) {
-			if err := ctx.Err(); err != nil {
-				return err
+		if bucket := tx.Bucket([]byte(req.Namespace)); bucket != nil {
+			cursor := bucket.Cursor()
+			prefix := []byte(req.Prefix)
+			// Deletion shifts the remaining keys; advancing would skip the next key.
+			for key, _ := cursor.Seek(prefix); key != nil && bytes.HasPrefix(key, prefix); key, _ = cursor.Seek(prefix) {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				if err := cursor.Delete(); err != nil {
+					return err
+				}
 			}
-			if err := cursor.Delete(); err != nil {
-				return err
+		}
+		if expiry := tx.Bucket([]byte(expiryBucketName)); expiry != nil {
+			metaPrefix := expiryComposite(req.Namespace, req.Prefix)
+			cursor := expiry.Cursor()
+			for key, _ := cursor.Seek(metaPrefix); key != nil && bytes.HasPrefix(key, metaPrefix); key, _ = cursor.Seek(metaPrefix) {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				if err := cursor.Delete(); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -301,6 +473,8 @@ func (s *storage) List(ctx context.Context, req *storagekv.ListRequest) (*storag
 		if bucket == nil {
 			return nil
 		}
+		expiry := tx.Bucket([]byte(expiryBucketName))
+		now := time.Now().UnixNano()
 		cursor := bucket.Cursor()
 		start := req.Prefix
 		if after != "" {
@@ -311,6 +485,10 @@ func (s *storage) List(ctx context.Context, req *storagekv.ListRequest) (*storag
 			key, _ = cursor.Next()
 		}
 		for ; key != nil && bytes.HasPrefix(key, []byte(req.Prefix)); key, _ = cursor.Next() {
+			// Expired keys are invisible and do not fill the page.
+			if expiry != nil && recordExpired(expiry.Get(expiryComposite(req.Namespace, string(key))), now) {
+				continue
+			}
 			if uint32(len(resp.Keys)) == limit {
 				data, err := json.Marshal(listCursor{Namespace: req.Namespace, Prefix: req.Prefix, After: resp.Keys[len(resp.Keys)-1]})
 				if err != nil {
@@ -369,4 +547,46 @@ func invalidRequest(message string) error {
 
 func recordNotFound(key string) error {
 	return errdefs.NotFound(status.Errorf(codes.NotFound, "record %q not found", key))
+}
+
+// expiryComposite builds the expiry index key. Neither component can contain
+// a NUL byte, so the split is unambiguous.
+func expiryComposite(namespace, key string) []byte {
+	composite := make([]byte, 0, len(namespace)+1+len(key))
+	composite = append(composite, namespace...)
+	composite = append(composite, 0)
+	composite = append(composite, key...)
+	return composite
+}
+
+// encodeExpiry stores an absolute UnixNano deadline as eight bytes.
+func encodeExpiry(expiresAt int64) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, uint64(expiresAt))
+	return b
+}
+
+// decodeExpiry reads a deadline written by encodeExpiry.
+func decodeExpiry(meta []byte) (int64, bool) {
+	if len(meta) != 8 {
+		return 0, false
+	}
+	return int64(binary.BigEndian.Uint64(meta)), true
+}
+
+// recordExpired reports whether meta records a deadline no later than now.
+// No metadata means the record is permanent.
+func recordExpired(meta []byte, now int64) bool {
+	expiresAt, ok := decodeExpiry(meta)
+	return ok && expiresAt <= now
+}
+
+// expiryAt computes the absolute deadline for a TTL, saturating at the
+// largest representable UnixNano instead of wrapping to an already-past time.
+func expiryAt(now time.Time, ttl int64) int64 {
+	nowNano := now.UnixNano()
+	if ttl > math.MaxInt64-nowNano {
+		return math.MaxInt64
+	}
+	return nowNano + ttl
 }

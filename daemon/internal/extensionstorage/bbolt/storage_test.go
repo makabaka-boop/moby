@@ -1,6 +1,7 @@
 package bbolt
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	cerrdefs "github.com/containerd/errdefs"
+	"github.com/containerd/errdefs/pkg/errgrpc"
 	"github.com/moby/extensions"
 	daemonconfigv0 "github.com/moby/moby/v2/extpoints/daemonconfig/v0"
 	storagekv "github.com/moby/moby/v2/extpoints/storage/kv/v0"
@@ -24,6 +26,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"gotest.tools/v3/assert"
 	is "gotest.tools/v3/assert/cmp"
+	"gotest.tools/v3/poll"
 	"gotest.tools/v3/skip"
 )
 
@@ -613,4 +616,228 @@ func TestStorageInitialization(t *testing.T) {
 	assert.NilError(t, d.Shutdown(t.Context()))
 	_, err := storagekv.GetKV(testResolver{}, "jobs")
 	assert.Assert(t, err != nil)
+}
+
+func waitForNotFound(t *testing.T, kv *storagekv.KV, key string) {
+	t.Helper()
+	poll.WaitOn(t, func(poll.LogT) poll.Result {
+		_, err := kv.Get(t.Context(), key)
+		switch {
+		case cerrdefs.IsNotFound(err):
+			return poll.Success()
+		case err != nil:
+			return poll.Error(err)
+		default:
+			return poll.Continue("record %q is still live", key)
+		}
+	}, poll.WithDelay(time.Millisecond), poll.WithTimeout(10*time.Second))
+}
+
+func TestStorageTTL(t *testing.T) {
+	t.Parallel()
+	for _, transport := range []string{"in-process", "RPC"} {
+		t.Run(transport, func(t *testing.T) {
+			t.Parallel()
+			provider := newTestStorage(t, t.TempDir())
+			if transport == "RPC" {
+				provider = rpcStorage(t, provider)
+			}
+			kv := testKV(t, provider, "jobs")
+			ctx := t.Context()
+			// Generous deadline: under -race the parallel tests can delay an
+			// RPC round trip well past a sub-100ms TTL before a record is read
+			// back, which would masquerade as an implementation failure.
+			const ttl = time.Second
+
+			// Negative TTL is rejected at the helper and at the contract,
+			// so the check survives transport boundaries as well.
+			assert.Check(t, cerrdefs.IsInvalidArgument(kv.Create(ctx, "negative", nil, -time.Nanosecond)))
+			assert.Check(t, cerrdefs.IsInvalidArgument(kv.Update(ctx, "negative", nil, -time.Nanosecond)))
+			// The provider itself rejects negative TTL, which keeps in-process
+			// and RPC semantics identical regardless of the client helper.
+			err := provider.Create(ctx, &storagekv.WriteRequest{
+				Namespace: "jobs",
+				Key:       "negative-raw",
+				TTL:       -1,
+			})
+			assert.Check(t, cerrdefs.IsInvalidArgument(errgrpc.ToNative(err)), "%v", err)
+
+			assert.NilError(t, kv.Create(ctx, "volatile", []byte("one"), ttl))
+			value, err := kv.Get(ctx, "volatile")
+			assert.NilError(t, err)
+			assert.Equal(t, string(value), "one")
+			assert.Check(t, cerrdefs.IsConflict(kv.Create(ctx, "volatile", []byte("two"), ttl)))
+
+			waitForNotFound(t, kv, "volatile")
+
+			// Expired records are absent for update and create too.
+			assert.Check(t, cerrdefs.IsNotFound(kv.Update(ctx, "volatile", []byte("stale"))))
+			assert.NilError(t, kv.Create(ctx, "volatile", []byte("rebuilt"), ttl))
+			value, err = kv.Get(ctx, "volatile")
+			assert.NilError(t, err)
+			assert.Equal(t, string(value), "rebuilt")
+			waitForNotFound(t, kv, "volatile")
+
+			// Update replaces the expiry: omitting the TTL clears it.
+			assert.NilError(t, kv.Create(ctx, "cleared", []byte("first"), ttl))
+			assert.NilError(t, kv.Update(ctx, "cleared", []byte("second")))
+			time.Sleep(2 * ttl)
+			value, err = kv.Get(ctx, "cleared")
+			assert.NilError(t, err)
+			assert.Equal(t, string(value), "second")
+
+			// A fresh TTL on update restarts the deadline from the update.
+			assert.NilError(t, kv.Create(ctx, "renewed", nil, ttl))
+			assert.NilError(t, kv.Update(ctx, "renewed", []byte("alive"), time.Hour))
+			time.Sleep(2 * ttl)
+			value, err = kv.Get(ctx, "renewed")
+			assert.NilError(t, err)
+			assert.Equal(t, string(value), "alive")
+
+			// Existing calls without a TTL keep permanent storage behavior.
+			assert.NilError(t, kv.Create(ctx, "permanent", []byte("keep")))
+			time.Sleep(2 * ttl)
+			value, err = kv.Get(ctx, "permanent")
+			assert.NilError(t, err)
+			assert.Equal(t, string(value), "keep")
+		})
+	}
+}
+
+func TestStorageTTLListSkipsExpired(t *testing.T) {
+	t.Parallel()
+	for _, transport := range []string{"in-process", "RPC"} {
+		t.Run(transport, func(t *testing.T) {
+			t.Parallel()
+			provider := newTestStorage(t, t.TempDir())
+			if transport == "RPC" {
+				provider = rpcStorage(t, provider)
+			}
+			kv := testKV(t, provider, "jobs")
+			ctx := t.Context()
+			for _, key := range []string{"jobs/a", "jobs/c", "jobs/d"} {
+				assert.NilError(t, kv.Create(ctx, key, nil))
+			}
+			assert.NilError(t, kv.Create(ctx, "jobs/b", nil, time.Second))
+
+			waitForNotFound(t, kv, "jobs/b")
+
+			// The expired key is omitted and does not fill either page.
+			page, err := kv.List(ctx, storagekv.ListOptions{Prefix: "jobs/", Limit: 2})
+			assert.NilError(t, err)
+			assert.DeepEqual(t, page.Keys, []string{"jobs/a", "jobs/c"})
+			assert.Assert(t, page.NextCursor != "")
+			page, err = kv.List(ctx, storagekv.ListOptions{Prefix: "jobs/", Limit: 2, Cursor: page.NextCursor})
+			assert.NilError(t, err)
+			assert.DeepEqual(t, page.Keys, []string{"jobs/d"})
+			assert.Equal(t, page.NextCursor, "")
+		})
+	}
+}
+
+func TestStorageTTLExpiryPersistsAcrossRestart(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	first := newTestStorage(t, root)
+	kv := testKV(t, first, "jobs")
+	ctx := t.Context()
+	const ttl = 5 * time.Second
+	assert.NilError(t, kv.Create(ctx, "job", []byte("v"), ttl))
+	assert.NilError(t, kv.Create(ctx, "long", []byte("v"), time.Hour))
+	assert.NilError(t, kv.Create(ctx, "forever", []byte("v")))
+
+	// Let most, but not all, of the deadline elapse before the restart.
+	time.Sleep(2 * time.Second)
+	_, err := kv.Get(ctx, "job")
+	assert.NilError(t, err)
+	assert.NilError(t, first.(*storage).shutdown(ctx))
+
+	second := newTestStorage(t, root)
+	kv = testKV(t, second, "jobs")
+	// The persisted deadline is absolute: only a few seconds remain instead
+	// of a fresh full TTL, so the record expires shortly after the restart.
+	poll.WaitOn(t, func(poll.LogT) poll.Result {
+		if _, err := kv.Get(ctx, "job"); cerrdefs.IsNotFound(err) {
+			return poll.Success()
+		}
+		return poll.Continue("record still live after restart")
+	}, poll.WithDelay(time.Millisecond), poll.WithTimeout(6*time.Second))
+
+	for _, key := range []string{"long", "forever"} {
+		value, err := kv.Get(ctx, key)
+		assert.NilError(t, err)
+		assert.Equal(t, string(value), "v")
+	}
+}
+
+func TestStorageExpirySweeper(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	provider := newTestStorage(t, root).(*storage)
+	// The database opens lazily on the first operation, so the override
+	// takes effect when the sweeper starts.
+	provider.cleanupInterval = 5 * time.Millisecond
+	kv := testKV(t, provider, "jobs")
+	ctx := t.Context()
+
+	assert.NilError(t, kv.Create(ctx, "gone", []byte("v"), 100*time.Millisecond))
+	// The renewal below happens after a wall-clock sleep that a -race build can
+	// stretch, so give the original deadline ample headroom.
+	assert.NilError(t, kv.Create(ctx, "renewed", []byte("v1"), 5*time.Second))
+	assert.NilError(t, kv.Create(ctx, "rebuilt", []byte("v1"), 100*time.Millisecond))
+	assert.NilError(t, kv.Create(ctx, "forever", []byte("v")))
+
+	// Renew before the original deadline while sweeps are already running.
+	time.Sleep(40 * time.Millisecond)
+	assert.NilError(t, kv.Update(ctx, "renewed", []byte("v2"), time.Hour))
+
+	// Let a record expire, then rebuild it under the same name.
+	waitForNotFound(t, kv, "rebuilt")
+	assert.NilError(t, kv.Create(ctx, "rebuilt", []byte("v2"), time.Hour))
+
+	// Deleted records take their expiry index entry with them.
+	assert.NilError(t, kv.Create(ctx, "deleted", nil, time.Hour))
+	assert.NilError(t, kv.Delete(ctx, "deleted"))
+	assert.NilError(t, kv.Create(ctx, "batch/a", nil, time.Hour))
+	assert.NilError(t, kv.DeletePrefix(ctx, "batch/"))
+
+	// The sweeper physically removes the expired record and its index entry
+	// without anyone accessing its key.
+	poll.WaitOn(t, func(poll.LogT) poll.Result {
+		value, meta := rawRecord(t, provider, "jobs", "gone")
+		if value == nil && meta == nil {
+			return poll.Success()
+		}
+		return poll.Continue("expired record not swept yet")
+	}, poll.WithDelay(time.Millisecond), poll.WithTimeout(10*time.Second))
+
+	// Repeated sweeps past the original deadlines must not remove the renewed
+	// record, the same-name rebuild, or permanent records.
+	time.Sleep(300 * time.Millisecond)
+	for key, want := range map[string]string{"renewed": "v2", "rebuilt": "v2", "forever": "v"} {
+		value, meta := rawRecord(t, provider, "jobs", key)
+		assert.Equal(t, string(value), want, key)
+		assert.Assert(t, meta != nil || key == "forever", key)
+	}
+	for _, key := range []string{"deleted", "batch/a", "gone"} {
+		value, meta := rawRecord(t, provider, "jobs", key)
+		assert.Assert(t, value == nil, key)
+		assert.Assert(t, meta == nil, key)
+	}
+}
+
+// rawRecord reads the database through the provider's own read transaction,
+// bypassing the expiry semantics so tests can observe physical deletion.
+func rawRecord(t *testing.T, s *storage, namespace, key string) (value, meta []byte) {
+	t.Helper()
+	assert.NilError(t, s.transaction(t.Context(), false, func(tx *bolt.Tx) error {
+		if bucket := tx.Bucket([]byte(namespace)); bucket != nil {
+			value = bytes.Clone(bucket.Get([]byte(key)))
+		}
+		if expiry := tx.Bucket([]byte(expiryBucketName)); expiry != nil {
+			meta = bytes.Clone(expiry.Get(expiryComposite(namespace, key)))
+		}
+		return nil
+	}))
+	return value, meta
 }
